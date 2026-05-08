@@ -1,5 +1,6 @@
 from sqlalchemy import Column, Integer, Float, String, Text
 from app.database import Base
+from sqlalchemy.dialects.postgresql import JSON
 
 
 class Upload(Base):
@@ -16,4 +17,4 @@ class Upload(Base):
 
     balance = Column(Float)
 
-    ai_insights = Column(Text)
+    ai_insights = Column(JSON)

@@ -1,7 +1,7 @@
 from openai import OpenAI
 from app.utils.decorators import simple_cache,retry
-
 from app.config import OPENAI_API_KEY
+import json
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
@@ -13,17 +13,24 @@ def generate_ai_insights(summary):
 
         prompt = f"""
         You are a financial analytics assistant.
-    
-        Analyze the following financial summary.
-    
-        Provide:
-        1. Spending observations
-        2. Potential concerns
-        3. Positive financial indicators
-    
-        Keep response concise and business-friendly.
-    
-        Data:
+
+        Analyze the following financial data.
+
+        Return ONLY valid JSON.
+        
+        Required JSON format:
+
+        {{
+            "risk_level": "low | medium | high",
+            "top_category": "category name",
+            "summary": "short summary",
+            "recommendations": [
+                "recommendation 1",
+                "recommendation 2"
+            ]
+        }}
+
+        Financial data:
         {summary}
         """
 
@@ -37,6 +44,12 @@ def generate_ai_insights(summary):
             ]
         )
 
-        return response.choices[0].message.content
+        content = response.choices[0].message.content
+        content = content.replace("```json", "")
+        content = content.replace("```", "")
+        content = content.strip()
+
+        return json.loads(content)
+
     except Exception as e:
         return f"AI insight generation failed: {str(e)}"
