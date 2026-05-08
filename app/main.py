@@ -6,8 +6,8 @@ from app.models.transaction import Transaction
 from app.database import Base,get_db
 from sqlalchemy.orm import Session
 from fastapi import Depends
-
 from app.services.transaction_service import summarize_transactions
+from app.utils.security import verify_api_key
 
 app = FastAPI()
 
@@ -43,7 +43,10 @@ def get_analytics(db: Session = Depends(get_db)):
 
 @app.post("/automation/analyze")
 async def automation_analyze(
-    file: UploadFile = File(...), db: Session = Depends(get_db)):
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    api_key: str = Depends(verify_api_key)
+):
 
     df = pd.read_csv(file.file)
 
