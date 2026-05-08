@@ -1,0 +1,5 @@
+type,amount,description
+income,5000,salary
+expense,200,restaurant
+expense,100,uber
+income,300,freelance
