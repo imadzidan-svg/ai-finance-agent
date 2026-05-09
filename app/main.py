@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from fastapi import Depends
 from app.services.transaction_service import summarize_transactions
 from app.utils.security import verify_api_key
+from app.schemas.response import SummaryResponse
 
 app = FastAPI()
 
@@ -41,7 +42,7 @@ def get_analytics(db: Session = Depends(get_db)):
     }
 
 
-@app.post("/automation/analyze")
+@app.post("/automation/analyze",response_model=SummaryResponse)
 async def automation_analyze(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
@@ -93,12 +94,9 @@ async def automation_analyze(
 
     return {
         "status": "success",
-        "summary": {
-            "total_income": summary["total_income"],
-            "total_expense": summary["total_expense"],
-            "balance": summary["balance"]
-        },
-        "insights": summary["insights"],
+        "total_income": summary["total_income"],
+        "total_expense": summary["total_expense"],
+        "balance": summary["balance"],
         "ai_insights": summary["ai_insights"]
     }
 
