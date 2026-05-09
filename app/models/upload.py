@@ -11,6 +11,12 @@ class Upload(Base):
 
     filename = Column(String)
 
+    sender_email = Column(String)
+
+    sender_name = Column(String)
+
+    email_subject = Column(String)
+
     total_income = Column(Float)
 
     total_expense = Column(Float)

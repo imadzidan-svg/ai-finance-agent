@@ -1,11 +1,10 @@
-from fastapi import FastAPI, UploadFile, File, BackgroundTasks
+from fastapi import FastAPI, UploadFile, File, BackgroundTasks, HTTPException, Depends, Form
 import pandas as pd
 from app.database import engine, SessionLocal
 from app.models.upload import Upload
 from app.models.transaction import Transaction
 from app.database import Base,get_db
 from sqlalchemy.orm import Session
-from fastapi import Depends
 from app.services.transaction_service import summarize_transactions
 from app.utils.security import verify_api_key
 from app.schemas.response import SummaryResponse
@@ -26,6 +25,40 @@ def get_uploads(db: Session = Depends(get_db)):
     uploads = db.query(Upload).all()
 
     return uploads
+
+@app.get("/uploads/{upload_id}")
+def get_upload_status(
+    upload_id: int,
+    db: Session = Depends(get_db)
+):
+    upload = db.query(Upload).filter(Upload.id == upload_id).first()
+
+    if not upload:
+        raise HTTPException(status_code=404, detail="Upload not found")
+
+    transactions = db.query(Transaction).filter(
+        Transaction.upload_id == upload_id
+    ).all()
+
+    return {
+        "id": upload.id,
+        "filename": upload.filename,
+        "status": upload.processing_status,
+        "is_processed": upload.is_processed,
+        "total_income": upload.total_income,
+        "total_expense": upload.total_expense,
+        "balance": upload.balance,
+        "ai_insights": upload.ai_insights,
+        "transactions": [
+            {
+                "description": t.description,
+                "amount": t.amount,
+                "type": t.type,
+                "category": t.category
+            }
+            for t in transactions
+        ]
+    }
 
 @app.get("/analytics")
 def get_analytics(db: Session = Depends(get_db)):
@@ -70,7 +103,7 @@ def process_file_background(
 
         for _, row in summary["dataframe"].iterrows():
             transaction = Transaction(
-                
+
                 upload_id=upload_id,
 
                 description=row["description"],
@@ -90,6 +123,8 @@ def process_file_background(
 
         db.commit()
 
+        
+
     except Exception as e:
 
         upload = db.query(Upload).filter(
@@ -108,6 +143,9 @@ def process_file_background(
 async def automation_analyze(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
+    sender_email: str = Form(...),
+    sender_name: str = Form(...),
+    email_subject: str = Form(...),
     db: Session = Depends(get_db),
     api_key: str = Depends(verify_api_key)
 ):
@@ -120,6 +158,12 @@ async def automation_analyze(
     upload_record = Upload(
 
         filename=file.filename,
+
+        sender_email=sender_email,
+
+        sender_name=sender_name,
+
+        email_subject=email_subject,
 
         total_income=0,
 
