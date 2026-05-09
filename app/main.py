@@ -9,7 +9,8 @@ from app.services.transaction_service import summarize_transactions
 from app.utils.security import verify_api_key
 from app.schemas.response import SummaryResponse
 import shutil
-
+import requests
+from app.config import MAKE_WEBHOOK_URL
 
 app = FastAPI()
 
@@ -123,7 +124,33 @@ def process_file_background(
 
         db.commit()
 
-        
+        # Call make webhook passing the requested data in order to send an email to the sender
+        # with ai insights
+        requests.post(
+
+            MAKE_WEBHOOK_URL,
+
+            json={
+
+                "upload_id": upload.id,
+
+                "sender_email": upload.sender_email,
+
+                "sender_name": upload.sender_name,
+
+                "email_subject": upload.email_subject,
+
+                "status": upload.processing_status,
+
+                "total_income": upload.total_income,
+
+                "total_expense": upload.total_expense,
+
+                "balance": upload.balance,
+
+                "ai_insights": upload.ai_insights
+            }
+        )
 
     except Exception as e:
 
