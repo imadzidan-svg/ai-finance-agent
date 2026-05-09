@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, Float, String, Text
+from sqlalchemy import Column, Integer, Float, String, Text,Boolean
 from app.database import Base
 from sqlalchemy.dialects.postgresql import JSON
 
@@ -18,3 +18,7 @@ class Upload(Base):
     balance = Column(Float)
 
     ai_insights = Column(JSON)
+
+    is_processed = Column(Boolean, default=False)
+
+    processing_status = Column(String, default="pending")

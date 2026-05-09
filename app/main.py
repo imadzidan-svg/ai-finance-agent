@@ -1,6 +1,6 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, BackgroundTasks
 import pandas as pd
-from app.database import engine
+from app.database import engine, SessionLocal
 from app.models.upload import Upload
 from app.models.transaction import Transaction
 from app.database import Base,get_db
@@ -9,6 +9,8 @@ from fastapi import Depends
 from app.services.transaction_service import summarize_transactions
 from app.utils.security import verify_api_key
 from app.schemas.response import SummaryResponse
+import shutil
+
 
 app = FastAPI()
 
@@ -41,29 +43,95 @@ def get_analytics(db: Session = Depends(get_db)):
         "transaction_count": len(transactions)
     }
 
+def process_file_background(
+    file_path: str,
+    upload_id: int
+):
 
-@app.post("/automation/analyze",response_model=SummaryResponse)
+    db = SessionLocal()
+
+    try:
+
+        df = pd.read_csv(file_path)
+
+        summary = summarize_transactions(df)
+
+        upload = db.query(Upload).filter(
+            Upload.id == upload_id
+        ).first()
+
+        upload.total_income = summary["total_income"]
+
+        upload.total_expense = summary["total_expense"]
+
+        upload.balance = summary["balance"]
+
+        upload.ai_insights = summary["ai_insights"]
+
+        for _, row in summary["dataframe"].iterrows():
+            transaction = Transaction(
+                
+                upload_id=upload_id,
+
+                description=row["description"],
+
+                amount=row["amount"],
+
+                type=row["type"],
+
+                category=row["category"]
+            )
+
+            db.add(transaction)
+
+        upload.is_processed = True
+
+        upload.processing_status = "completed"
+
+        db.commit()
+
+    except Exception as e:
+
+        upload = db.query(Upload).filter(
+            Upload.id == upload_id
+        ).first()
+
+        upload.processing_status = "failed"
+
+        db.commit()
+
+    finally:
+
+        db.close()
+
+@app.post("/automation/analyze")
 async def automation_analyze(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     api_key: str = Depends(verify_api_key)
 ):
 
-    df = pd.read_csv(file.file)
+    temp_path = f"temp_{file.filename}"
 
-    summary = summarize_transactions(df)
+    with open(temp_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
 
     upload_record = Upload(
 
         filename=file.filename,
 
-        total_income=summary["total_income"],
+        total_income=0,
 
-        total_expense=summary["total_expense"],
+        total_expense=0,
 
-        balance=summary["balance"],
+        balance=0,
 
-        ai_insights=summary["ai_insights"]
+        ai_insights={},
+
+        is_processed=False,
+
+        processing_status="processing"
     )
 
     db.add(upload_record)
@@ -72,32 +140,18 @@ async def automation_analyze(
 
     db.refresh(upload_record)
 
-    for _, row in summary["dataframe"].iterrows():
-        transaction = Transaction(
+    background_tasks.add_task(
 
-            description=row["description"],
+        process_file_background,
 
-            amount=row["amount"],
+        temp_path,
 
-            type=row["type"],
-
-            category=row["category"]
-        )
-
-        db.add(transaction)
-
-    db.commit()
-
-    db.refresh(transaction)
-
-    del summary["dataframe"]
+        upload_record.id
+    )
 
     return {
-        "status": "success",
-        "total_income": summary["total_income"],
-        "total_expense": summary["total_expense"],
-        "balance": summary["balance"],
-        "ai_insights": summary["ai_insights"]
+        "status": "processing",
+        "upload_id": upload_record.id
     }
 
 
